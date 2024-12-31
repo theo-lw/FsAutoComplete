@@ -445,7 +445,7 @@ type AdaptiveFSharpLspServer
 
         try
           logger.info (Log.setMessage "Initialized request")
-          let! _ = state.ParseAllFiles()
+          let! () = state.ParseAllFiles()
           return ()
         with e ->
 
@@ -2440,7 +2440,7 @@ type AdaptiveFSharpLspServer
             |> HashSet.ofArray
 
           transact (fun () -> state.WorkspacePaths <- (WorkspaceChosen.Projs projs))
-          let! _ = state.ParseAllFiles()
+          let! () = state.ParseAllFiles()
 
           return { Content = CommandResponse.workspaceLoad FsAutoComplete.JsonSerializer.writeJson true }
 

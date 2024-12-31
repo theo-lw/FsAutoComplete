@@ -1323,18 +1323,21 @@ type AdaptiveState
         |> ASet.mapA id
         |> ASet.toAVal
 
-      return!
+      let parseFileComputations = 
         projects
         |> HashSet.toArray
         |> Array.collect (fun (snap) -> snap.SourceFilesTagged |> List.toArray |> Array.map (fun s -> snap, s))
         |> Array.map (fun (snap, filePath) ->
-          taskResult {
-            let! vFile = forceFindOpenFileOrRead filePath
-            return! parseFile checker vFile snap
+          asyncResult {
+              let! vFile = forceFindOpenFileOrRead filePath
+              let! (_: FSharpParseFileResults) =  Async.AwaitTask(parseFile checker vFile snap)
+              return ()
+          } 
+        )
 
-          })
+      let maxDegreeOfParallelismSmallToNotOverloadCPU = 8
 
-        |> Task.WhenAll
+      return! Async.Parallel(parseFileComputations, maxDegreeOfParallelism = maxDegreeOfParallelismSmallToNotOverloadCPU) |> Async.Ignore |> Async.StartAsTask
     }
 
   let forceFindSourceText filePath = forceFindOpenFileOrRead filePath |> AsyncResult.map (fun f -> f.Source)
@@ -2483,7 +2486,6 @@ type AdaptiveState
   member x.ParseAllFiles() =
     parseAllFiles ()
     |> AsyncAVal.forceAsync
-    |> Async.map (Array.choose Result.toOption)
 
   member x.GetOpenFileSource(filePath) = forceFindSourceText filePath
 
