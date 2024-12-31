@@ -10,6 +10,7 @@ open FsAutoComplete.Logging
 open Ionide.LanguageServerProtocol
 open Ionide.LanguageServerProtocol.Types
 open Ionide.ProjInfo.ProjectSystem
+open Ionide.ProjInfo.Types
 open System.Reactive
 
 open FsAutoComplete.Adaptive
@@ -907,6 +908,19 @@ type AdaptiveState
 
       use progressReport = new ServerProgressReport(lspClient)
 
+      use (_sub: IDisposable) = 
+        loader.Notifications.Subscribe(fun projState -> 
+          logger.debug (Log.setMessage $"Got project state notification %A{projState}");
+          match projState with 
+          | WorkspaceProjectState.Failed (path, errors) ->
+            let failedToLoadNotification = ProjectResponse.ProjectError (path, errors) |> NotificationEvent.Workspace
+            notifications.Trigger(failedToLoadNotification, CancellationToken.None);
+            progressReport.Report (message = $"Failed to load %s{path}") |> ignore<CancellableTask<unit>>
+          | WorkspaceProjectState.Loading path ->
+            progressReport.Report (message = $"Loading %s{path}") |> ignore<CancellableTask<unit>>
+          | WorkspaceProjectState.Loaded (project, _knownProjects: list<ProjectOptions>, _fromCache: bool) -> 
+            progressReport.Report (message = $"Loaded %s{project.ProjectFileName}") |> ignore<CancellableTask<unit>>)
+        
       progressReport.Begin ($"Loading {projects.Count} Projects") (CancellationToken.None)
       |> ignore<Task<unit>>
 
